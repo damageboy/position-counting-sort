@@ -318,35 +318,51 @@ template<bool WithValues, size_t Count, bool AssumeDistinct> TESTINLINE void PCS
     memset(cnt, 0, sizeof(cnt));
 
     for (size_t i = 0; i < Count/4; i++) {
-        __m128i current = _mm_load_si128((__m128i*)&inKeys[4 * i]);
-        __m128i reg0 = _mm_shuffle_epi32(current, SHUF(0, 0, 0, 0));
-        __m128i reg1 = _mm_shuffle_epi32(current, SHUF(1, 1, 1, 1));
-        __m128i reg2 = _mm_shuffle_epi32(current, SHUF(2, 2, 2, 2));
-        __m128i reg3 = _mm_shuffle_epi32(current, SHUF(3, 3, 3, 3));
+        auto current = _mm_load_si128((__m128i*)&inKeys[4 * i]);
+        auto reg0 = _mm_shuffle_epi32(current, SHUF(0, 0, 0, 0));
+        auto reg1 = _mm_shuffle_epi32(current, SHUF(1, 1, 1, 1));
+        auto reg2 = _mm_shuffle_epi32(current, SHUF(2, 2, 2, 2));
+        auto reg3 = _mm_shuffle_epi32(current, SHUF(3, 3, 3, 3));
+        auto currentSum = _mm_load_si128(&cnt[i]);
 
-        for (size_t j = 0; j <= i; j++) {
-            __m128i data = _mm_load_si128((__m128i*)&inKeys[4*j]);
-            __m128i cmp0 = _mm_cmplt_epi32(reg0, data);
-            __m128i cmp1 = _mm_cmplt_epi32(reg1, data);
-            __m128i cmp2 = _mm_cmplt_epi32(reg2, data);
-            __m128i cmp3 = _mm_cmplt_epi32(reg3, data);
-            __m128i sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), _mm_add_epi32(cmp2, cmp3));
+        __m128i data;
+        __m128i cmp0;
+        __m128i cmp1;
+        __m128i cmp2;
+        __m128i cmp3;
+        __m128i sum;
+
+        for (size_t j = 0; j < i; j++) {
+            data = _mm_load_si128((__m128i *) &inKeys[4 * j]);
+            cmp0 = _mm_cmplt_epi32(reg0, data);
+            cmp1 = _mm_cmplt_epi32(reg1, data);
+            cmp2 = _mm_cmplt_epi32(reg2, data);
+            cmp3 = _mm_cmplt_epi32(reg3, data);
+
+            sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), _mm_add_epi32(cmp2, cmp3));
             _mm_store_si128(&cnt[j], _mm_sub_epi32(_mm_load_si128(&cnt[j]), sum));
         }
-        __m128i data = _mm_load_si128((__m128i*)&inKeys[4*i]);
-        __m128i cmp0 = _mm_and_si128(_mm_cmpeq_epi32(reg0, data), _mm_setr_epi32(0, -1, -1, -1));
-        __m128i cmp1 = _mm_and_si128(_mm_cmpeq_epi32(reg1, data), _mm_setr_epi32(0,  0, -1, -1));
-        __m128i cmp2 = _mm_and_si128(_mm_cmpeq_epi32(reg2, data), _mm_setr_epi32(0,  0,  0, -1));
-        //__m128i cmp3 = _mm_and_si128(_mm_cmpeq_epi32(reg3, data), _mm_setr_epi32(0,  0,  0,  0));
-        __m128i sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), cmp2);
-        _mm_store_si128(&cnt[i], _mm_sub_epi32(_mm_load_si128(&cnt[i]), sum));
+
+        cmp0 = _mm_cmplt_epi32(reg0, current);
+        cmp1 = _mm_cmplt_epi32(reg1, current);
+        cmp2 = _mm_cmplt_epi32(reg2, current);
+        cmp3 = _mm_cmplt_epi32(reg3, current);
+        sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), _mm_add_epi32(cmp2, cmp3));
+        currentSum = _mm_sub_epi32(currentSum, sum);
+
+        cmp0 = _mm_and_si128(_mm_cmpeq_epi32(reg0, current), _mm_setr_epi32(0, -1, -1, -1));
+        cmp1 = _mm_and_si128(_mm_cmpeq_epi32(reg1, current), _mm_setr_epi32(0,  0, -1, -1));
+        cmp2 = _mm_and_si128(_mm_cmpeq_epi32(reg2, current), _mm_setr_epi32(0,  0,  0, -1));
+        //cmp3 = _mm_and_si128(_mm_cmpeq_epi32(reg3, data), _mm_setr_epi32(0,  0,  0,  0));
+        sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), cmp2);
+        _mm_store_si128(&cnt[i], _mm_sub_epi32(currentSum, sum));
         for (size_t j = i+1; j < Count/4; j++) {
-            __m128i data = _mm_load_si128((__m128i*)&inKeys[4*j]);
-            __m128i cmp0 = _mm_cmpgt_epi32(reg0, data);
-            __m128i cmp1 = _mm_cmpgt_epi32(reg1, data);
-            __m128i cmp2 = _mm_cmpgt_epi32(reg2, data);
-            __m128i cmp3 = _mm_cmpgt_epi32(reg3, data);
-            __m128i sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), _mm_add_epi32(cmp2, cmp3));
+            data = _mm_load_si128((__m128i*)&inKeys[4 * j]);
+            cmp0 = _mm_cmpgt_epi32(reg0, data);
+            cmp1 = _mm_cmpgt_epi32(reg1, data);
+            cmp2 = _mm_cmpgt_epi32(reg2, data);
+            cmp3 = _mm_cmpgt_epi32(reg3, data);
+            sum = _mm_add_epi32(_mm_add_epi32(cmp0, cmp1), _mm_add_epi32(cmp2, cmp3));
             _mm_store_si128(&cnt[j], _mm_add_epi32(_mm_load_si128(&cnt[j]), sum));
         }
     }

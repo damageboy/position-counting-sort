@@ -1,7 +1,0 @@
-cmake-build-debug/
-cmake-build-release/
-.idea/
-Makefile
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
