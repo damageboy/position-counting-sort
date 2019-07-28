@@ -1,5 +1,3 @@
-#define NDEBUG
-
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -209,7 +207,7 @@ template<bool WithValues, size_t Count, bool AssumeDistinct> TESTINLINE void PCS
         __m128i cnt3 = _mm_setzero_si128();
         for (size_t j = 0; j < Count; j += 4) {
             __m128i data = _mm_load_si128((__m128i*)&inKeys[j]);
-            #define CMP(t) \
+#define CMP(t) \
                 __m128i X##t = _mm_shuffle_epi32(data, SHUF(t, t, t, t)); \
                 cnt0 = _mm_sub_epi32(cnt0, _mm_cmplt_epi32(X##t, reg0)); \
                 cnt1 = _mm_sub_epi32(cnt1, _mm_cmplt_epi32(X##t, reg1)); \
@@ -219,10 +217,10 @@ template<bool WithValues, size_t Count, bool AssumeDistinct> TESTINLINE void PCS
             CMP(1);
             CMP(2);
             CMP(3);
-            #undef CMP
+#undef CMP
         }
-        
-        #define MOVE(t) { \
+
+#define MOVE(t) { \
             unsigned k0 = _mm_cvtsi128_si32(cnt##t   ); \
             unsigned k1 = _mm_extract_epi32(cnt##t, 1); \
             unsigned k2 = _mm_extract_epi32(cnt##t, 2); \
@@ -242,7 +240,7 @@ template<bool WithValues, size_t Count, bool AssumeDistinct> TESTINLINE void PCS
         MOVE(1);
         MOVE(2);
         MOVE(3);
-        #undef MOVE
+#undef MOVE
     }
 }
 
@@ -320,11 +318,11 @@ template<bool WithValues, size_t Count, bool AssumeDistinct> TESTINLINE void PCS
     memset(cnt, 0, sizeof(cnt));
 
     for (size_t i = 0; i < Count/4; i++) {
-        __m128i reg = _mm_load_si128((__m128i*)&inKeys[4*i]);
-        __m128i reg0 = _mm_shuffle_epi32(reg, SHUF(0, 0, 0, 0));
-        __m128i reg1 = _mm_shuffle_epi32(reg, SHUF(1, 1, 1, 1));
-        __m128i reg2 = _mm_shuffle_epi32(reg, SHUF(2, 2, 2, 2));
-        __m128i reg3 = _mm_shuffle_epi32(reg, SHUF(3, 3, 3, 3));
+        __m128i current = _mm_load_si128((__m128i*)&inKeys[4 * i]);
+        __m128i reg0 = _mm_shuffle_epi32(current, SHUF(0, 0, 0, 0));
+        __m128i reg1 = _mm_shuffle_epi32(current, SHUF(1, 1, 1, 1));
+        __m128i reg2 = _mm_shuffle_epi32(current, SHUF(2, 2, 2, 2));
+        __m128i reg3 = _mm_shuffle_epi32(current, SHUF(3, 3, 3, 3));
 
         for (size_t j = 0; j <= i; j++) {
             __m128i data = _mm_load_si128((__m128i*)&inKeys[4*j]);
@@ -613,6 +611,7 @@ const bool WithValues = false;
 const int MAXN = 256;
 //number of sorts performed
 const int TRIES = 1<<20;
+//const int TRIES = 1;
 
 
 //input arrays (keys and values)
@@ -636,7 +635,7 @@ void GenInputs(bool assumeDistinct) {
     for (int i = 0; i < MAXN; i++) {
         do {
             for (int j = 0; j < PACK; j++) {
-                arrKeys[i][j] = trandom(assumeDistinct ? 1000000000 : 100);
+                arrKeys[i][j] = trandom(assumeDistinct ? 1000000000 : 10);
                 arrVals[i][j] = trandom(1000000000);
             }
         } while (assumeDistinct && hasEqual(arrKeys[i]));
@@ -649,14 +648,19 @@ void TestSearch(void (*pSort)(const int *, const int *, int *, int *), const cha
     memset(resVals, -63, sizeof(resVals));
 
     int start = clock();
-    int check = 0;
     for (int t = 0; t < TRIES; t++) {
         int i = t & (MAXN-1);
         pSort(arrKeys[i], arrVals[i], resKeys[i], resVals[i]);
-        check += resKeys[i][0] + resKeys[i][PACK-1];
-        assert(std::is_sorted(resKeys[i], resKeys[i] + PACK));  //note: values not checked
     }
     double elapsed = double(clock() - start) / CLOCKS_PER_SEC;
+
+    auto numTests = 0;
+    for (int t = 0; t < MAXN; t++) {
+        assert(std::is_sorted(resKeys[t], resKeys[t] + PACK));
+        std::sort(arrKeys[t], arrKeys[t] + PACK);
+        assert(std::equal(resKeys[t], resKeys[t] + PACK, arrKeys[t]));
+        numTests++;
+    }
 
     char funcname[256];
     va_list args;
@@ -664,7 +668,7 @@ void TestSearch(void (*pSort)(const int *, const int *, int *, int *), const cha
     vsprintf(funcname, format, args);
     va_end(args);
 
-    printf("%8.1lf ns : %-40s   (%d)\n", 1e+9 * elapsed / TRIES, funcname, check);
+    printf("%8.1lf ns : %-40s   (%d)\n", 1e+9 * elapsed / TRIES, funcname, numTests);
 }
 
 
@@ -685,7 +689,6 @@ int main() {
         Test_PC(PCSort_Optimized, false);
     if (true)
         Test_PC(PCSort_Trans, false);
-
     // Only distinct elements:
     GenInputs(true);
     if (false)
